@@ -7,7 +7,7 @@ __pycache__/
 *.so
 
 # repl notebook-like python files
-.nb.py
+*.nb.py
 
 # Distribution / packaging
 .Python
