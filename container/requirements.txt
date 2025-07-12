@@ -1,0 +1,7 @@
+requests
+beautifulsoup4
+sendgrid
+python-dotenv
+loguru
+pydantic
+fake-useragent
