@@ -6,6 +6,8 @@ __pycache__/
 # C extensions
 *.so
 
+# json data files for testing
+articles.json
 # repl notebook-like python files
 *.nb.py
 
