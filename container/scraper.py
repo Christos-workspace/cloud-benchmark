@@ -133,4 +133,11 @@ if __name__ == "__main__":
     
     # Save results
     with open('container/articles.json', 'w') as f:
-        json.dump({k: [a.dict() for a in v] for k, v in all_results.items()}, f, indent=4)
+        json.dump(
+            {
+                site_name: [article.dict() for article in articles_list]
+                for site_name, articles_list in all_results.items()
+            },
+            f,
+            indent=4
+        )
