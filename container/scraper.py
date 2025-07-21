@@ -1,7 +1,7 @@
 
 import requests
 from bs4 import BeautifulSoup as bs
-from pydantic import BaseModel, Field, HttpUrl
+from pydantic import BaseModel, Field, HttpUrl, ValidationError
 from typing import Dict, List, Optional, Union
 from fake_useragent import UserAgent
 from datetime import datetime as dt, date
@@ -18,6 +18,7 @@ class NewsArticle(BaseModel):
     title: str
     url: HttpUrl
     published_date: date
+    summary: str = ""
 
 
 class SiteConfig(BaseModel):
@@ -88,12 +89,16 @@ class NewsScraper:
                 date_str = date_elem.get('datetime') if date_elem else ""
                 pub_date = self.config.date_parser(date_str) if date_str else date.today()
                 
-                articles.append(NewsArticle(
-                    title=title,
-                    url=link,
-                    published_date=pub_date,
-                    summary=summary
-                ))
+                try:
+                    article = NewsArticle(
+                        title=title,
+                        url=link,
+                        published_date=pub_date,
+                        summary=summary
+                    )
+                    articles.append(article)
+                except ValidationError as e:
+                    print(f"Skipping invalid article data: {e}")
         
         return articles
 
