@@ -37,21 +37,21 @@ class NewsScraper:
     
     @staticmethod
     def get_soup(url: str):
-    """
-    Fetches the HTML content of a given URL and parses it into a BeautifulSoup object.
+        """
+        Fetches the HTML content of a given URL and parses it into a BeautifulSoup object.
 
-    Args:
-        url (str): The URL of the webpage to scrape.
+        Args:
+            url (str): The URL of the webpage to scrape.
 
-    Returns:
-        BeautifulSoup: Parsed HTML content of the webpage.
+        Returns:
+            BeautifulSoup: Parsed HTML content of the webpage.
 
-    Raises:
-        Exception: If the HTTP request fails (non-200 status code).
-    """
-    response = requests.get(url, headers={"User-Agent": UserAgent().random})
-    if response.status_code != 200:
-        raise Exception(f"Failed to fetch data from {url}")
+        Raises:
+            Exception: If the HTTP request fails (non-200 status code).
+        """
+        response = requests.get(url, headers={"User-Agent": UserAgent().random})
+        if response.status_code != 200:
+            raise Exception(f"Failed to fetch data from {url}")
     def scrape_site(self) -> List[NewsArticle]:
         """Scrape articles from the configured news site"""
         soup = self.get_soup(str(self.config.base_url))
