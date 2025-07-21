@@ -20,15 +20,24 @@ class NewsArticle(BaseModel):
     published_date: date
 
 
+class SiteConfig(BaseModel):
+    base_url: HttpUrl
+    section_selector: str
+    card_selector: str
+    title_selector: str
+    link_selector: str
+    summary_selector: str
+    date_selector: str
+    date_parser: callable  # Function to handle site-specific date formatting
+
 class NewsScraper:
-    pass
-
-
-def get_soup(url: str):
+    def __init__(self, config: SiteConfig):
+        self.config = config
+    
+    @staticmethod
+    def get_soup(url: str):
     """
-    Fetches the HTML content of a given URL and
-
-   parses it into a BeautifulSoup object.
+    Fetches the HTML content of a given URL and parses it into a BeautifulSoup object.
 
     Args:
         url (str): The URL of the webpage to scrape.
@@ -42,40 +51,81 @@ def get_soup(url: str):
     response = requests.get(url, headers={"User-Agent": UserAgent().random})
     if response.status_code != 200:
         raise Exception(f"Failed to fetch data from {url}")
-    soup = bs(response.content, "html.parser")
-    return soup
+    def scrape_site(self) -> List[NewsArticle]:
+        """Scrape articles from the configured news site"""
+        soup = self.get_soup(str(self.config.base_url))
+        sections = soup.select(self.config.section_selector)
+        
+        articles = []
+        unique_links = set()
+        
+        for section in sections:
+            cards = section.select(self.config.card_selector)
+            for card in cards:
+                link_elem = card.select_one(self.config.link_selector)
+                if not link_elem:
+                    continue
+                    
+                link = link_elem.get('href')
+                if not link:
+                    continue
+                
+                # Handle relative links
+                if not link.startswith("http"):
+                    link = f"{self.config.base_url}{link}"
+                
+                if link in unique_links:
+                    continue
+                unique_links.add(link)
+                
+                # Extract article details
+                title = card.select_one(self.config.title_selector).get_text().strip()
+                summary_elem = card.select_one(self.config.summary_selector)
+                summary = summary_elem.get_text().strip() if summary_elem else ""
+                
+                # Get publication date
+                date_elem = card.select_one(self.config.date_selector)
+                date_str = date_elem.get('datetime') if date_elem else ""
+                pub_date = self.config.date_parser(date_str) if date_str else date.today()
+                
+                articles.append(NewsArticle(
+                    title=title,
+                    url=link,
+                    published_date=pub_date,
+                    summary=summary
+                ))
+        
+        return articles
 
+    @staticmethod
+    def scrape_all_sites(configs: List[SiteConfig]) -> Dict[str, List[NewsArticle]]:
+        """Scrape multiple sites and return results grouped by site"""
+        results = {}
+        for config in configs:
+            scraper = NewsScraper(config)
+            site_name = config.base_url.host  # type: ignore
+            results[site_name] = scraper.scrape_site()
+        return results
 
-soup = get_soup(f"{BBC_URL}/news")
-sections = soup.select('section[data-analytics-group="true"]')
-print(len(sections))
-
-
-articles = []
-unique_links = set()
-for section in sections:
-    cards = section.select('div[data-testid="anchor-inner-wrapper"]')
-    for card in cards:
-        article = {}
-        link = card.select_one("a").get('href')
-        if 'articles' in link and link not in unique_links:
-            unique_links.add(link)
-            article['title'] = card.select_one("h2").get_text()
-            if not link.startswith("http"):
-                article['link'] = f"{BBC_URL}{link}"
-            else:
-                article['link'] = f"{link}"
-            summary = card.select_one("p[data-testid='card-description']")
-            if summary:
-                article['summary'] = summary.get_text()
-            else:
-                article['summary'] = ""
-            url_soup = get_soup(article['link'])
-            date_str = url_soup.select_one('time').get('datetime')
-            article['date'] = dt.fromisoformat(
-                date_str.replace('Z', '+00:00')).strftime('%d-%m-%Y')
-            articles.append(article)
-
-print(len(articles))
-with open('container/articles.json', 'w') as f:
-    json.dump(articles, f, indent=4)
+if __name__ == "__main__":
+    # Example configuration for BBC
+    bbc_config = SiteConfig(
+        base_url=BBC_URL,
+        section_selector='section[data-analytics-group="true"]',
+        card_selector='div[data-testid="anchor-inner-wrapper"]',
+        title_selector="h2",
+        link_selector="a",
+        summary_selector="p[data-testid='card-description']",
+        date_selector="time",
+        date_parser=lambda d: dt.fromisoformat(d.replace('Z', '+00:00')).date()
+    )
+    
+    # Create scrapers for all sites
+    all_results = NewsScraper.scrape_all_sites([
+        bbc_config,
+        # Add similar configs for APNEWS and REUTERS here
+    ])
+    
+    # Save results
+    with open('container/articles.json', 'w') as f:
+        json.dump({k: [a.dict() for a in v] for k, v in all_results.items()}, f, indent=4)
