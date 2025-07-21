@@ -1,5 +1,11 @@
-from scraper import NewsScraper, SiteConfig, BBC_URL
+from scraper import NewsScraper, SiteConfig
 import json
+
+
+BBC_URL = "https://www.bbc.com"
+APNEWS_URL = "https://apnews.com/"
+REUTERS_URL = "https://www.reuters.com/"
+
 
 def main():
     # Example configuration for BBC
@@ -31,6 +37,7 @@ def main():
             f,
             ensure_ascii=False,
             indent=4)
+
 
 if __name__ == "__main__":
     main()
