@@ -56,12 +56,12 @@ class NewsScraper:
         logger.info(f"Fetching URL: {url}")
         response = requests.get(
             url, headers={"User-Agent": UserAgent().random})
-        time.sleep(4)
+        time.sleep(3)
         if response.status_code != 200:
             logger.error(f"Failed to fetch data from {
                          url} - Status code: {response.status_code}")
             raise Exception(f"Failed to fetch data from {url}")
-        soup = bs(response.content, 'html.parser')
+        soup = bs(response.content, 'lxml')
         logger.debug(f"Fetched and parsed HTML from {url}")
         return soup
 
