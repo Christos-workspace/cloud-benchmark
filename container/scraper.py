@@ -6,8 +6,9 @@ from typing import Dict, List, Optional
 from fake_useragent import UserAgent
 from datetime import datetime as dt, timezone, date
 from dateutil import parser
+from playwright.sync_api import sync_playwright
 from loguru import logger
-
+from pprint import pprint
 # Log to file and rotate every 10 MB
 logger.add("container/scraper.log", rotation="10 MB")
 
@@ -30,13 +31,33 @@ class SiteConfig(BaseModel):
     link_selector: str
     keyword: Optional[str] = None
     summary_selector: Optional[str] = None
-    date_selector: str
+    date_selector: Optional[str] = None
     date_attribute: Optional[str] = None
 
 
 class NewsScraper:
     def __init__(self, config: SiteConfig):
         self.config = config
+
+    @staticmethod
+    def get_page_html(url: str, headless: bool = True) -> str:
+        """
+        Uses Playwright to fetch the rendered HTML of a webpage.
+        Args:
+            url (str): The URL to visit.
+            headless (bool): Whether to run the browser in headless mode.
+        Returns:
+            str: The HTML content of the page.
+        """
+        with sync_playwright() as p:
+            browser = p.firefox.launch(headless=headless)
+            page = browser.new_page()
+            page.goto(url)
+            # Optionally, wait for network to be idle or for a selector to appear:
+            # page.wait_for_load_state('networkidle')
+            html = page.content()
+            browser.close()
+        return html
 
     @staticmethod
     def get_soup(url: str):
@@ -54,14 +75,16 @@ class NewsScraper:
             Exception: If the HTTP request fails (non-200 status code).
         """
         logger.info(f"Fetching URL: {url}")
-        response = requests.get(
-            url, headers={"User-Agent": UserAgent().random})
-        time.sleep(3)
-        if response.status_code != 200:
-            logger.error(f"Failed to fetch data from {
-                         url} - Status code: {response.status_code}")
-            raise Exception(f"Failed to fetch data from {url}")
-        soup = bs(response.content, 'lxml')
+        # response = requests.get(
+        #     url, headers={"User-Agent": UserAgent().random})
+        # time.sleep(3)
+        # if response.status_code != 200:
+        #     logger.error(f"Failed to fetch data from {
+        #                  url} - Status code: {response.status_code}")
+        #     raise Exception(f"Failed to fetch data from {url}")
+        # soup = bs(response.content, 'lxml')
+        html = NewsScraper.get_page_html(url)
+        soup = bs(html, 'lxml')
         logger.debug(f"Fetched and parsed HTML from {url}")
         return soup
 
@@ -99,7 +122,17 @@ class NewsScraper:
             cards = section.select(self.config.card_selector)
             logger.debug(f"Found {len(cards)} cards in section")
             for card in cards:
+                print("---------------------------------")
+                pprint(card)
+                print("---------------------------------")
                 link_elem = card.select_one(self.config.link_selector)
+                summary_selector = self.config.summary_selector
+                date_selector = self.config.date_selector
+                date_attribute = self.config.date_attribute
+                logger.debug(f"summary selector is: {summary_selector}")
+                logger.debug(f"date selector is: {date_selector}")
+                logger.debug(f"date attribute is: {date_attribute}")
+
                 if not link_elem:
                     logger.warning(
                         "No link element found in card, skipping...")
@@ -137,25 +170,35 @@ class NewsScraper:
                 title = title_elem.get_text().strip()
                 logger.debug(f"Article title: {title}")
 
-                if self.config.summary_selector:
+                if summary_selector:
 
                     summary_elem = card.select_one(
-                        self.config.summary_selector)
+                        summary_selector)
                     summary = summary_elem.get_text().strip() if summary_elem else ""
                 else:
                     summary = ""
 
-                date_elem = card.select_one(self.config.date_selector)
-                if not date_elem:
-                    logger.warning(f"No date found for article card: {
-                                   title}, trying to fetch from link...")
-                    time_soup = self.get_soup(link)
-                    date_elem = time_soup.select_one(self.config.date_selector)
+                if date_selector:
+                    logger.debug(f"using date selector: {date_selector}")
 
-                date_str = date_elem.get(
-                    self.config.date_attribute)
-                logger.debug(f"Date string found for {
-                             self.config.date_attribute}: {date_str}")
+                    date_elem = card.select_one(date_selector)
+                    if not date_elem:
+                        logger.warning(f"No date found for article card: {
+                                       title}, trying to fetch from link...")
+                        time_soup = self.get_soup(link)
+                        date_elem = time_soup.select_one(date_selector)
+
+                    date_str = date_elem.get(
+                        date_attribute)
+                    logger.debug(f"Date string found for {
+                                 date_attribute}: {date_str}")
+                else:
+                    logger.debug(
+                        "No date selector provided, using date attribute")
+                    logger.debug(f"date attribute is: {
+                                 date_attribute}")
+                    date_str = card.get(date_attribute)
+                    logger.debug(f"date string found: {date_str}")
 
                 pub_date = self.parse_date(date_str)
 
