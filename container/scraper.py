@@ -1,15 +1,13 @@
-import time
 import requests
+from fake_useragent import UserAgent
 from bs4 import BeautifulSoup as bs
 from pydantic import BaseModel, Field, HttpUrl
-from typing import Dict, List, Optional
-from fake_useragent import UserAgent
+from typing import List, Optional
 from datetime import datetime as dt, timezone, date
 from dateutil import parser
 from playwright.sync_api import sync_playwright
 from loguru import logger
-from pprint import pprint
-# Log to file and rotate every 10 MB
+
 logger.add("container/scraper.log", rotation="10 MB")
 
 
@@ -20,11 +18,6 @@ class NewsArticle(BaseModel):
     published_date: date
     summary: Optional[str] = Field(
         default=None, description="Summary of the article")
-    embedding: Optional[List[float]] = Field(
-        default_factory=list,
-        description="Embedding vector from Gemma 3 model",
-        max_items=3072  # Match Gemma 3's embedding size
-    )
 
 
 class SiteConfig(BaseModel):
@@ -37,7 +30,7 @@ class SiteConfig(BaseModel):
     keyword: Optional[str] = None
     summary_selector: Optional[str] = None
     date_selector: Optional[str] = None
-    date_attribute: Optional[str] = None
+    date_attribute: str
 
 
 class NewsScraper:
@@ -54,14 +47,18 @@ class NewsScraper:
         Returns:
             str: The HTML content of the page.
         """
-        with sync_playwright() as p:
-            browser = p.firefox.launch(headless=headless)
-            page = browser.new_page()
-            page.goto(url)
-            # Optionally, wait for network to be idle or for a selector to appear:
-            # page.wait_for_load_state('networkidle')
-            html = page.content()
-            browser.close()
+        response = requests.get(
+            url, headers={'User-Agent': UserAgent().random})
+        if response.status_code != 200:
+            logger.error(f"Failed to fetch {url}, status code: {
+                         response.status_code}")
+        html = response.content
+        # with sync_playwright() as p:
+        #     browser = p.firefox.launch(headless=headless)
+        #     page = browser.new_page()
+        #     page.goto(url)
+        #     html = page.content()
+        #     browser.close()
         return html
 
     @staticmethod
@@ -76,18 +73,8 @@ class NewsScraper:
         Returns:
             BeautifulSoup: Parsed HTML content of the webpage.
 
-        Raises:
-            Exception: If the HTTP request fails (non-200 status code).
         """
         logger.info(f"Fetching URL: {url}")
-        # response = requests.get(
-        #     url, headers={"User-Agent": UserAgent().random})
-        # time.sleep(3)
-        # if response.status_code != 200:
-        #     logger.error(f"Failed to fetch data from {
-        #                  url} - Status code: {response.status_code}")
-        #     raise Exception(f"Failed to fetch data from {url}")
-        # soup = bs(response.content, 'lxml')
         html = NewsScraper.get_page_html(url)
         soup = bs(html, 'lxml')
         logger.debug(f"Fetched and parsed HTML from {url}")
@@ -111,33 +98,37 @@ class NewsScraper:
 
     def scrape_site(self) -> List[NewsArticle]:
         """Scrape articles from the configured news site"""
-        logger.info(f"Starting scraping for site: {self.config.base_url}")
-        if not self.config.news_url:
-            logger.warning("No newa URL provided, using base URL instead.")
-            self.config.news_url = self.config.base_url
-        soup = self.get_soup(str(self.config.news_url))
-        site_name = self.config.base_url.host
-        sections = soup.select(self.config.section_selector)
+
+        base_url = self.config.base_url
+        news_url = self.config.news_url
+        section_selector = self.config.section_selector
+        card_selector = self.config.card_selector
+        title_selector = self.config.title_selector
+        link_selector = self.config.link_selector
+        keyword = self.config.keyword
+        summary_selector = self.config.summary_selector
+        date_selector = self.config.date_selector
+        date_attribute = self.config.date_attribute
+
+        logger.info(f"Starting scraping for site: {base_url}")
+        if not news_url:
+            logger.warning("No news URL provided, using base URL instead.")
+            news_url = base_url
+        soup = self.get_soup(str(news_url))
+        site_name = base_url.host
+        sections = soup.select(section_selector)
         logger.debug(f"Found {len(sections)} sections in the page")
 
         articles = []
         unique_links = set()
 
         for section in sections:
-            cards = section.select(self.config.card_selector)
+            cards = section.select(card_selector)
             logger.debug(f"Found {len(cards)} cards in section")
-            for card in cards:
-                print("---------------------------------")
-                pprint(card)
-                print("---------------------------------")
-                link_elem = card.select_one(self.config.link_selector)
-                summary_selector = self.config.summary_selector
-                date_selector = self.config.date_selector
-                date_attribute = self.config.date_attribute
-                logger.debug(f"summary selector is: {summary_selector}")
-                logger.debug(f"date selector is: {date_selector}")
-                logger.debug(f"date attribute is: {date_attribute}")
 
+            for card in cards:
+
+                link_elem = card.select_one(link_selector)
                 if not link_elem:
                     logger.warning(
                         "No link element found in card, skipping...")
@@ -149,9 +140,8 @@ class NewsScraper:
                         "Link element present but no href found, skipping...")
                     continue
 
-                # Handle relative links
                 if not link.startswith("http"):
-                    link = f"{self.config.base_url}{link}"
+                    link = f"{base_url}{link}"
 
                 logger.debug(f"Processing link: {link}")
 
@@ -159,7 +149,7 @@ class NewsScraper:
                     logger.debug(f"Duplicate link found: {link}, skipping...")
                     continue
 
-                if 'article' not in link:
+                if keyword not in link:
                     logger.debug(f"Link does not contain article: {
                                  link}, skipping...")
                     continue
@@ -167,16 +157,14 @@ class NewsScraper:
                 unique_links.add(link)
 
                 # Extract article details
-                title_elem = card.select_one(self.config.title_selector)
+                title_elem = card.select_one(title_selector)
                 if not title_elem:
                     logger.warning(
                         "No title found for article card, skipping...")
                     continue
                 title = title_elem.get_text().strip()
-                logger.debug(f"Article title: {title}")
 
                 if summary_selector:
-
                     summary_elem = card.select_one(
                         summary_selector)
                     summary = summary_elem.get_text().strip() if summary_elem else ""
@@ -184,8 +172,6 @@ class NewsScraper:
                     summary = ""
 
                 if date_selector:
-                    logger.debug(f"using date selector: {date_selector}")
-
                     date_elem = card.select_one(date_selector)
                     if not date_elem:
                         logger.warning(f"No date found for article card: {
@@ -195,15 +181,10 @@ class NewsScraper:
 
                     date_str = date_elem.get(
                         date_attribute)
-                    logger.debug(f"Date string found for {
-                                 date_attribute}: {date_str}")
                 else:
                     logger.debug(
                         "No date selector provided, using date attribute")
-                    logger.debug(f"date attribute is: {
-                                 date_attribute}")
                     date_str = card.get(date_attribute)
-                    logger.debug(f"date string found: {date_str}")
 
                 pub_date = self.parse_date(date_str)
 
@@ -216,7 +197,7 @@ class NewsScraper:
                 ))
                 logger.success(f"Added article: {title} ({link})")
 
-        logger.info(f"Scraping complete for {self.config.base_url}. {
+        logger.info(f"Scraping complete for {base_url}. {
                     len(articles)} articles found.")
 
         return articles
