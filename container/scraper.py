@@ -20,6 +20,11 @@ class NewsArticle(BaseModel):
     published_date: date
     summary: Optional[str] = Field(
         default=None, description="Summary of the article")
+    embedding: Optional[List[float]] = Field(
+        default_factory=list,
+        description="Embedding vector from Gemma 3 model",
+        max_items=3072  # Match Gemma 3's embedding size
+    )
 
 
 class SiteConfig(BaseModel):
