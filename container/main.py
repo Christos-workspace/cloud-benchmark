@@ -1,33 +1,67 @@
 """
-Main script for scraping news articles and saving them to a file.
+Main script for scraping news articles and uploading results to cloud storage.
 
 This script uses the `NewsScraper` class and `SiteConfig` objects to scrape
-news articles from multiple websites and saves the results as a JSON file.
-Configurations for the websites are defined in `get_site_configs()`.
+news articles from multiple websites and upload the results as a JSON file
+directly to cloud object storage. Local storage of results is not performed.
+
+Cloud storage uploads are currently implemented for Azure Blob Storage and
+the infrastructure is in place to extend support to Amazon S3 and Google Cloud
+Storage via the `storage.py` module.
 
 Steps:
     1. Define configurations for websites to scrape.
-    2. Use `NewsScraper.scrape_all_sites` to scrape
-        articles from these websites.
-    3. Save the scraped articles to `container/articles.json`.
+    2. Use `NewsScraper.scrape_all_sites` to scrape articles
+        from these websites.
+    3. Upload the scraped articles as a JSON file to the configured
+        cloud storage provider.
 
 Usage:
     Run this script directly:
         python main.py
 
 Requirements:
-    - Ensure the `models.py` and `scraper.py` modules are
-        present in the `container` directory.
+    - Ensure the `models.py`, `scraper.py`, and `storage.py` modules are
+    present in the `container` directory.
     - Python 3.7 or higher.
-    - External libraries: requests, fake_useragent,
-        bs4, pydantic, dateutil, loguru.
+    - External libraries:
+        requests,
+        fake_useragent,
+        bs4,
+        pydantic,
+        dateutil,
+        loguru,
+        azure-storage-blob.
+
+Cloud Storage Configuration:
+    The upload destination is controlled by environment variables.
+    Currently supported:
+        Azure:
+            Set `AZURE_BLOB_CONTAINER` and `AZURE_STORAGE_CONNECTION_STRING`
+            to upload to Azure Blob Storage.
+        AWS:
+            (TBI) Set `AWS_S3_BUCKET`, `AWS_ACCESS_KEY_ID`, and
+            `AWS_SECRET_ACCESS_KEY` to upload to Amazon S3.
+        GCP:
+            (TBI) Set `GCP_BUCKET` and `GOOGLE_APPLICATION_CREDENTIALS`
+            to upload to Google Cloud Storage.
+
+Notes:
+    - If no supported cloud storage configuration is provided,
+        the script will log a warning and skip upload.
+    - To add support for a new provider, implement the upload logic in
+      `storage.py` and update the upload section in `main.py`.
+
 """
 
 import json
+import io
 from loguru import logger
 from scraper import NewsScraper
 from models import SiteConfig
 import sys
+import os
+from storage import upload_file_to_azure_blob
 
 logger.remove()  # Remove default logger
 logger.add(sys.stdout, format="{time} {level} {message}", level="INFO")
@@ -71,23 +105,6 @@ def get_site_configs():
     return [bbc_config, apnews_config]
 
 
-def save_to_file(data, filename="container/articles.json"):
-    """
-    Save data to a JSON file.
-
-    Args:
-        data (List[dict]): The list of articles to save.
-        filename (str): The output file path
-            (default: "container/articles.json").
-    """
-    try:
-        with open(filename, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=4)
-        logger.info(f"Data successfully saved to {filename}.")
-    except Exception as e:
-        logger.error(f"Failed to save data to {filename}: {e}")
-
-
 def main():
     """
     Main function to scrape news articles and save them to a JSON file.
@@ -107,8 +124,22 @@ def main():
         logger.critical(f"An error occurred during scraping: {e}")
         return
 
-    # Save articles to a file
-    save_to_file([article.model_dump(mode="json") for article in articles])
+    # Prepare the data to upload as JSON
+    result_json = json.dumps(
+        [article.model_dump(mode="json") for article in articles],
+        ensure_ascii=False,
+        indent=4,
+    )
+    # Convert the JSON string to bytes and wrap in BytesIO for in-memory upload
+    data = io.BytesIO(result_json.encode("utf-8"))
+
+    try:
+        upload_file_to_azure_blob(
+            dest_blob_name="articles.json",
+            data=data,
+        )
+    except Exception as e:
+        logger.error(f"Error uploading to Azure Blob: {e}")
 
 
 if __name__ == "__main__":
