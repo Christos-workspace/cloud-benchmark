@@ -56,12 +56,16 @@ Notes:
 
 import json
 import io
+import os
 from loguru import logger
 from scraper import NewsScraper
 from models import SiteConfig
 import sys
-import os
 from storage import upload_file_to_azure_blob
+from dotenv import load_dotenv
+
+if os.environ.get("USE_DOTENV", "0") == "1":
+    load_dotenv("credentials/azure.env")
 
 logger.remove()  # Remove default logger
 logger.add(sys.stdout, format="{time} {level} {message}", level="INFO")

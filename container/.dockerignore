@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.db
+*.sqlite3
+*.env
+*.log
+.env
+credentials/
+results/
+.DS_Store
+.vscode/
+.git/
+.gitignore
+README.md
+project-plan.md
