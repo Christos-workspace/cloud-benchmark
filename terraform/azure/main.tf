@@ -17,8 +17,6 @@ resource "azurerm_storage_account" "main" {
   account_tier             = "Standard"
   account_replication_type = "LRS"
 
-  allow_blob_public_access = false
-
   depends_on = [azurerm_resource_group.main]
 }
 
@@ -48,5 +46,5 @@ resource "azurerm_container_group" "scraper" {
     }
   }
 
-  ip_address_type = "public"
+  ip_address_type = "None"
 }
