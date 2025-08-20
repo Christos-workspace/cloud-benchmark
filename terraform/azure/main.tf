@@ -9,6 +9,15 @@ resource "azurerm_resource_group" "main" {
   location = var.location
 }
 
+# Azure Container Registry
+resource "azurerm_container_registry" "acr" {
+  name                = var.acr_name
+  resource_group_name = azurerm_resource_group.main.name
+  location            = azurerm_resource_group.main.location
+  sku                 = var.acr_sku
+  admin_enabled       = true
+}
+
 # Storage Account
 resource "azurerm_storage_account" "main" {
   name                     = lower("${var.storage_account_prefix}${random_id.storage_suffix.hex}")
@@ -29,6 +38,7 @@ resource "azurerm_storage_container" "results" {
 
 # Azure Container Instance (runs your Docker image)
 resource "azurerm_container_group" "scraper" {
+  count               = var.create_container_group ? 1 : 0
   name                = var.container_group_name
   location            = azurerm_resource_group.main.location
   resource_group_name = azurerm_resource_group.main.name
@@ -46,5 +56,11 @@ resource "azurerm_container_group" "scraper" {
     }
   }
 
-  ip_address_type = "None"
+  image_registry_credential {
+    server   = azurerm_container_registry.acr.login_server
+    username = azurerm_container_registry.acr.admin_username
+    password = azurerm_container_registry.acr.admin_password
+  }
+  
+ip_address_type = "None"
 }

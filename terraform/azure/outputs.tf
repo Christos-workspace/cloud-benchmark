@@ -21,10 +21,26 @@ output "blob_container_name" {
 
 output "container_group_name" {
   description = "The name of the Azure Container Instance group"
-  value       = azurerm_container_group.scraper.name
+  value       = length(azurerm_container_group.scraper) > 0 ? azurerm_container_group.scraper[0].name : ""
 }
 
 output "container_group_ip_address" {
   description = "The public IP address of the Azure Container Instance group"
-  value       = azurerm_container_group.scraper.ip_address
+  value       = length(azurerm_container_group.scraper) > 0 ? azurerm_container_group.scraper[0].ip_address : ""
+}
+
+output "acr_login_server" {
+  description = "The login server of the Azure Container Registry"
+  value       = azurerm_container_registry.acr.login_server
+}
+
+output "acr_admin_username" {
+  description = "The admin username for the Azure Container Registry"
+  value       = azurerm_container_registry.acr.admin_username
+}
+
+output "acr_admin_password" {
+  description = "The admin password for the Azure Container Registry"
+  value       = azurerm_container_registry.acr.admin_password
+  sensitive   = true
 }
