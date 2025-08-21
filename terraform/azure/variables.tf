@@ -1,6 +1,12 @@
+# ==============================================================================
+# variables.tf
+# Defines all input variables for the Azure cloud benchmark Terraform deployment.
+# Includes authentication, resource naming, deployment toggles, and image config.
+# ==============================================================================
+
 # Azure Service Principal variables
 variable "client_id" {
-  description = "Azure Client ID"
+  description = "Azure Client ID (used for authenticating Terraform with Azure)"
   type        = string
 }
 

@@ -1,3 +1,13 @@
+# ==============================================================================
+# docker-compose.yaml
+# Launches Apache Airflow stack for the Cloud Benchmark project.
+# This environment is used to orchestrate, benchmark, and compare cloud resource
+# deployment and container execution workflows across major providers.
+#
+# Author: Christos
+# Date: 21/08/2025
+# ==============================================================================
+
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information

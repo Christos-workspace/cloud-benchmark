@@ -1,3 +1,8 @@
+# ==============================================================================
+# versions.tf
+# Specifies required Terraform and provider versions for reproducibility.
+# ==============================================================================
+
 terraform {
   required_version = ">= 1.2.0"
 

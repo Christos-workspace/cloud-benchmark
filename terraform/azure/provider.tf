@@ -1,4 +1,9 @@
-# Configure the Azure provider
+# ==============================================================================
+# provider.tf
+# Configures the Azure provider to allow Terraform resource provisioning.
+# Credentials are provided via Airflow DAG at runtime.
+# ==============================================================================
+
 provider "azurerm" {
   features {}
   client_id       = var.client_id

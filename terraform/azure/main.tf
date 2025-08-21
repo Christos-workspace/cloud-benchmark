@@ -1,3 +1,10 @@
+# ==============================================================================
+# main.tf
+# Main Terraform configuration for Azure cloud benchmarking.
+# Provisions Resource Group, Container Registry, Storage, and optionally
+# Container Group to run benchmark tests. Uses staged deployment for timing.
+# ==============================================================================
+
 # Use a random_id to generate a unique storage account suffix
 resource "random_id" "storage_suffix" {
   byte_length = 2 # 2 bytes = 4 hex chars, e.g. "a1b2"
@@ -37,6 +44,7 @@ resource "azurerm_storage_container" "results" {
 }
 
 # Azure Container Instance (runs your Docker image)
+# The 'count' attribute allows conditional creation for staged benchmarking.
 resource "azurerm_container_group" "scraper" {
   count               = var.create_container_group ? 1 : 0
   name                = var.container_group_name
