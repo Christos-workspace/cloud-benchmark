@@ -18,6 +18,8 @@
 
 ## Project Workflow
 
+### Azure Workflow
+
 1. **Web Scraper Development (`container/`):**
    - Implemented a Python script to scrape news articles (see `scraper.py`, `models.py`).
    - Structured results using Pydantic models.
@@ -39,19 +41,66 @@
 
 ---
 
+### AWS Workflow *(To be implemented)*
+
+- Provision resources on AWS (ECS/EKS, S3, etc.)
+- Container registry setup and workflow orchestration
+- Benchmarking and reporting
+
+---
+
+### GCP Workflow *(To be implemented)*
+
+- Provision resources on GCP (Cloud Run, GCS, etc.)
+- Container registry setup and workflow orchestration
+- Benchmarking and reporting
+
+---
+
 ## Setup Instructions
 
 1. **Clone the repository**
-2. **Configure Azure credentials:** (Service Principal, secrets, etc.)
+
+2. **Configure Azure credentials**  
+   - Create a Service Principal (SP) using Azure CLI:
+     ```sh
+     az ad sp create-for-rbac --name "cloud-benchmark-sp" --role="Contributor" --scopes="/subscriptions/<SUBSCRIPTION_ID>"
+     ```
+     This command outputs the required variables: `client_id`, `client_secret`, `subscription_id`, and `tenant_id`.  
+   - Store these variables in `credentials/azure.env` or directly set them up in Airflow using the Connections UI or environment variables:
+     - In Airflow, set up a connection of type "Azure" and map the values as:
+       - `client_id` ➔ `ARM_CLIENT_ID`
+       - `client_secret` ➔ `ARM_CLIENT_SECRET`
+       - `subscription_id` ➔ `ARM_SUBSCRIPTION_ID`
+       - `tenant_id` ➔ `ARM_TENANT_ID`
+     - You can also use environment variables in your Airflow `docker-compose.yaml` for automated setup.
+
 3. **Build and test the scraper locally (`container/`):**
-   - `python main.py` (requires Python 3.7+, see `requirements.txt`)
+   ```sh
+   python main.py
+   ```
+   *(Requires Python 3.7+, see `requirements.txt`)*
+
 4. **Build Docker image:**
-   - `docker build -t cloudbenchmark-scraper container/`
+   ```sh
+   docker build -t cloudbenchmark-scraper container/
+   ```
+
 5. **Run Terraform:**
-   - Configure `.tfvars` and deploy resources (`terraform/azure/`)
+   - Configure `.tfvars` and deploy resources in `terraform/azure/`.
+   - Example:
+     ```sh
+     cd terraform/azure/
+     terraform init
+     terraform apply -var-file="terraform.tfvars"
+     ```
+
 6. **Launch Airflow environment:**
-   - Use `docker-compose.yaml` to start Airflow.
-   - Trigger the DAG for Azure benchmarking.
+   - Start Airflow using Docker Compose:
+     ```sh
+     docker compose up -d
+     ```
+   - Once Airflow is running, access the web interface and trigger the DAG for Azure benchmarking.
 
 ---
 
